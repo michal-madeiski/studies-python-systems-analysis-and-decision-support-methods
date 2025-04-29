@@ -10,6 +10,8 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingRegressor, 
 from sklearn.svm import SVR, SVC
 from sklearn.metrics import r2_score, accuracy_score
 from part_1.main_code.data_loader import loaded_fifa22_data as data
+from part_2.linear_regr.lin_regr_closed_form import LinearRegressionClosedFormula
+
 
 #print(data.info())
 #print(data.describe(include="all"))
@@ -19,6 +21,7 @@ num_models = {
     "DecisionTree": DecisionTreeRegressor(max_depth=5, random_state=42),
     "SVM": SVR(kernel="rbf", C=1.0),
     "GradientBoosting": GradientBoostingRegressor(max_depth=5, random_state=42, learning_rate=0.5, subsample=0.8),
+    "LinearRegressionClosedFormula": LinearRegressionClosedFormula(),
 }
 
 cat_models = {
