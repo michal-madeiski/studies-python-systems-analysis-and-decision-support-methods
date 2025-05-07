@@ -16,6 +16,11 @@ The goal of the classes is a data analysis project done during the semester.
 - 📁 part_1/main_code: data_analysis_main_1.py is the startup script for part_1
 - 📁 part_1/plots: to save generated plots
 - 📁 part_1/plots_generators: seperated scripts for each plot type
+- 📁 part_2: basics of machine learning
+- 📁 part_2/comparison: to compare r2 score from models
+- 📁 part_2/linear_regr: seperated scripts for each linear regression type
+- 📁 part_2/pipeline: training and evaluation of models
+
 
 ### Requirements:
  - 🐍 Python 3.13.2
