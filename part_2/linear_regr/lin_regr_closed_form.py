@@ -1,6 +1,7 @@
 import numpy as np
+from sklearn.base import BaseEstimator, RegressorMixin
 
-class LinearRegressionClosedFormula:
+class LinearRegressionClosedFormula(BaseEstimator, RegressorMixin):
     def __init__(self):
         self._a_ = None  #coefficients of x
         self._b_ = None  #bias

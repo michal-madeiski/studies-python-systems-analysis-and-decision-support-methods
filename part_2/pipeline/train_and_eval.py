@@ -1,5 +1,5 @@
 import pandas as pd
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score, KFold, StratifiedKFold
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
@@ -46,6 +46,11 @@ df_cat_comp = pd.DataFrame({"model": cat_models_arr})
 
 #print("Missing values per column:\n", data.isnull().sum())
 
+num_cv = KFold(n_splits=3, shuffle=True, random_state=rd)
+cat_cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=rd)
+df_num_cv_comp = pd.DataFrame({"model": num_models_arr})
+df_cat_cv_comp = pd.DataFrame({"model": cat_models_arr})
+
 for target in targets:
     X = data.drop(target, axis=1)
     y = data[target]
@@ -76,9 +81,13 @@ for target in targets:
 
     mode = "cat"
     models = cat_models
+    cv = cat_cv
+    scoring = "accuracy"
     if pd.api.types.is_numeric_dtype(y):
         models = num_models
         mode = "num"
+        cv = num_cv
+        scoring = "r2"
 
     X_train_transformed = preprocessor.fit_transform(X_train)
     X_test_transformed = preprocessor.fit_transform(X_test)
@@ -93,6 +102,12 @@ for target in targets:
         score = accuracy_score(y_test, y_pred) if mode == "cat" else r2_score(y_test, y_pred)
         results[name] = score
 
+    results_cv = {}
+    for name, model in models.items():
+        scores = cross_val_score(model, X_train_transformed, y_train, cv=cv, scoring=scoring)
+        scores_rounded = [f"{x:.3f}" for x in scores]
+        results_cv[name] = f"scores: {scores_rounded} | mean: {scores.mean():.3f} | std: {scores.std():.3f}"
+
     for k, v in results.items():
         #print(f"{k}: {v:.3f}")
         result = [v for _, v in results.items()]
@@ -101,5 +116,15 @@ for target in targets:
         if mode == "num":
             df_num_comp[target] = result
 
+    for k, v in results_cv.items():
+        #print(f"{k}: {v}")
+        result = [v for _, v in results_cv.items()]
+        if mode == "cat":
+            df_cat_cv_comp[target] = result
+        if mode == "num":
+            df_num_cv_comp[target] = result
+
 df_cat_comp.to_csv("../comparison/cat_comp.csv", index=False, float_format="%.3f")
 df_num_comp.to_csv("../comparison/num_comp.csv", index=False, float_format="%.3f")
+df_cat_cv_comp.to_csv("../comparison/cat_cv_comp.csv", index=False, float_format="%.3f")
+df_num_cv_comp.to_csv("../comparison/num_cv_comp.csv", index=False, float_format="%.3f")

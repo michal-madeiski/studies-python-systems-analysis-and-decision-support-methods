@@ -1,9 +1,10 @@
 import numpy as np
+from sklearn.base import BaseEstimator, RegressorMixin
 
 def mse(y, y_pred):
     return np.mean((y - y_pred)**2)
 
-class LinearRegressionGradientDescent:
+class LinearRegressionGradientDescent(BaseEstimator, RegressorMixin):
     def __init__(self, learning_rate=0.01, max_iterations=100, batch_size=32, random_state=None):
         self.learning_rate = learning_rate
         self.max_iterations = max_iterations
