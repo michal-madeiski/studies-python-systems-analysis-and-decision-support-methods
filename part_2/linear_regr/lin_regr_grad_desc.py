@@ -5,13 +5,17 @@ def mse(y, y_pred):
     return np.mean((y - y_pred)**2)
 
 class LinearRegressionGradientDescent(BaseEstimator, RegressorMixin):
-    def __init__(self, learning_rate=0.01, max_iterations=100, batch_size=32, random_state=None):
+    def __init__(self, learning_rate=0.01, max_iterations=100, batch_size=32, l1_reg=0.0, l2_reg=0.0, random_state=None):
         self.learning_rate = learning_rate
         self.max_iterations = max_iterations
         self.batch_size = batch_size
         self.random_state = random_state
         self.theta = None
+        self.intercept_ = None
+        self.coef_ = None
         self.all_mse = []
+        self.l1_reg = l1_reg
+        self.l2_reg = l2_reg
 
     def fit(self, X, y):
         self.all_mse = []
@@ -42,10 +46,19 @@ class LinearRegressionGradientDescent(BaseEstimator, RegressorMixin):
                 error = y_pred - y_batch
                 grad = (1/m) * X_batch.T @ error
 
+                #L1 regularization
+                grad += self.l1_reg * np.r_[0, np.sign(self.theta[1:])]
+
+                #L2 regularization
+                grad += self.l1_reg * np.r_[0, self.theta[1:]]
+
                 self.theta -= self.learning_rate * grad
 
             y_pred_full = X @ self.theta
             self.all_mse.append(mse(y, y_pred_full))
+
+        self.intercept_ = self.theta[0]
+        self.coef_ = self.theta[1:]
 
         return self
 

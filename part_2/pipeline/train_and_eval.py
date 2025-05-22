@@ -4,7 +4,7 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder, PolynomialFeatu
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, Lasso, Ridge
 from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingRegressor, GradientBoostingClassifier
 from sklearn.svm import SVR, SVC
@@ -17,15 +17,22 @@ from part_2.linear_regr.lin_regr_grad_desc import LinearRegressionGradientDescen
 #print(data.describe(include="all"))
 
 rd = 42
+alpha_L1 = 0.1
+alpha_L2 = 10
 
 num_models = {
     "LinearRegression": LinearRegression(),
+    "Lasso (L1)": Lasso(alpha=alpha_L1),
+    "Ridge (L2)": Ridge(alpha=alpha_L2),
     "DecisionTree": DecisionTreeRegressor(max_depth=5, random_state=rd),
     "SVM": SVR(kernel="rbf", C=1.0),
     "GradientBoosting": GradientBoostingRegressor(max_depth=5, random_state=rd, learning_rate=0.1, subsample=0.8),
     "LinearRegressionClosedFormula": LinearRegressionClosedFormula(),
     "LinearRegressionGradientDescent": LinearRegressionGradientDescent(learning_rate=0.01, max_iterations=100, batch_size=32, random_state=rd),
+    "LinearRegressionGradientDescent_L1": LinearRegressionGradientDescent(learning_rate=0.01, max_iterations=100, batch_size=32, l1_reg=alpha_L1, random_state=rd),
+    "LinearRegressionGradientDescent_L2": LinearRegressionGradientDescent(learning_rate=0.01, max_iterations=100, batch_size=32, l2_reg=alpha_L2, random_state=rd),
 }
+l1_l2_comp_models = ["LinearRegression", "Lasso (L1)", "Ridge (L2)", "LinearRegressionGradientDescent", "LinearRegressionGradientDescent_L1", "LinearRegressionGradientDescent_L2"]
 
 cat_models = {
     "RandomForestClassifier": RandomForestClassifier(random_state=rd),
@@ -43,6 +50,7 @@ num_models_arr = [k for k, _ in num_models.items()]
 df_num_comp = pd.DataFrame({"model": num_models_arr})
 df_num_comp_train = pd.DataFrame({"model": num_models_arr})
 df_num_comp_diff = pd.DataFrame({"model": num_models_arr})
+df_num_comp_l1_l2 = pd.DataFrame({"model": num_models_arr})
 all_mse = []
 cat_models_arr = [k for k, _ in cat_models.items()]
 df_cat_comp = pd.DataFrame({"model": cat_models_arr})
@@ -57,6 +65,7 @@ df_num_cv_comp = pd.DataFrame({"model": num_models_arr})
 df_cat_cv_comp = pd.DataFrame({"model": cat_models_arr})
 
 for target in targets:
+    #print(target) #for coef comp in lin_reg w/ and w/o regularization
     X = data.drop(target, axis=1)
     y = data[target]
 
@@ -110,6 +119,10 @@ for target in targets:
         score_train = accuracy_score(y_train, y_pred_train) if mode == "cat" else r2_score(y_train, y_pred_train)
         results[name] = (score, score_train)
 
+        #coef comp in lin_reg w/ and w/o regularization
+        #if mode == "num":
+        #     print(f"{name}: {clf.coef_}")
+
     results_cv = {}
     for name, model in models.items():
         scores = cross_val_score(model, X_train_transformed, y_train, cv=cv, scoring=scoring)
@@ -117,7 +130,7 @@ for target in targets:
         results_cv[name] = f"scores: {scores_rounded} | mean: {scores.mean():.3f} | std: {scores.std():.3f}"
 
     for k, v in results.items():
-        print(f"{k}: Train={v[1]:.3f}; Test={v[0]:.3f}")
+        #print(f"{k}: Train={v[1]:.3f}; Test={v[0]:.3f}")
         result = [v[0] for _, v in results.items()]
         result_train = [v[1] for _, v in results.items()]
         result_diff = [abs(v[0] - v[1]) for _, v in results.items()]
@@ -129,6 +142,8 @@ for target in targets:
             df_num_comp[target] = result
             df_num_comp_train[target] = result_train
             df_num_comp_diff[target] = result_diff
+            if k in l1_l2_comp_models:
+                df_num_comp_l1_l2[target] = result
 
     if mode == "num":
         all_mse.append([target] + num_models["LinearRegressionGradientDescent"].all_mse)
@@ -153,6 +168,7 @@ df_num_comp_train.to_csv("../comparison/num_comp_train.csv", index=False, float_
 df_cat_comp_diff.to_csv("../comparison/cat_comp_diff.csv", index=False, float_format="%.3f")
 df_num_comp_diff.to_csv("../comparison/num_comp_diff.csv", index=False, float_format="%.3f")
 #df_num_comp_diff.to_csv("../comparison/num_comp_diff_poly.csv", index=False, float_format="%.3f")
+df_num_comp_l1_l2.to_csv("../comparison/num_comp_l1_l2.csv", index=False, float_format="%.3f")
 
 df_num_comp_mse = pd.DataFrame(all_mse, columns=["target"] + [f"e{i+1}" for i in range(len(all_mse[0][1:]))])
 df_num_comp_mse.to_csv("../comparison/all_mse.csv", index=False, float_format="%.3f")
