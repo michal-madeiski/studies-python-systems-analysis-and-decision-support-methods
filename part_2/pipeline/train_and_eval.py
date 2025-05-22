@@ -1,6 +1,6 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split, cross_val_score, KFold, StratifiedKFold
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.preprocessing import StandardScaler, OneHotEncoder, PolynomialFeatures
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
@@ -41,8 +41,13 @@ data = data[features]
 
 num_models_arr = [k for k, _ in num_models.items()]
 df_num_comp = pd.DataFrame({"model": num_models_arr})
+df_num_comp_train = pd.DataFrame({"model": num_models_arr})
+df_num_comp_diff = pd.DataFrame({"model": num_models_arr})
+all_mse = []
 cat_models_arr = [k for k, _ in cat_models.items()]
 df_cat_comp = pd.DataFrame({"model": cat_models_arr})
+df_cat_comp_train = pd.DataFrame({"model": cat_models_arr})
+df_cat_comp_diff = pd.DataFrame({"model": cat_models_arr})
 
 #print("Missing values per column:\n", data.isnull().sum())
 
@@ -65,18 +70,19 @@ for target in targets:
 
     num_transformer = Pipeline(steps=[
         ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler())
+        #("poly", PolynomialFeatures(degree=3, include_bias=False)), #comment non-linear num_models and saving their results; uncomment saving poly results
+        ("scaler", StandardScaler()),
     ])
 
     cat_transformer = Pipeline(steps=[
         ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("onehot", OneHotEncoder(handle_unknown="ignore"))
+        ("onehot", OneHotEncoder(handle_unknown="ignore")),
     ])
 
     preprocessor = ColumnTransformer(
         transformers=[
             ("num", num_transformer, num_cols),
-            ("cat", cat_transformer, cat_cols)
+            ("cat", cat_transformer, cat_cols),
         ])
 
     mode = "cat"
@@ -99,8 +105,10 @@ for target in targets:
     results = {}
     for name, clf in models_fit.items():
         y_pred = clf.predict(X_test_transformed)
+        y_pred_train = clf.predict(X_train_transformed)
         score = accuracy_score(y_test, y_pred) if mode == "cat" else r2_score(y_test, y_pred)
-        results[name] = score
+        score_train = accuracy_score(y_train, y_pred_train) if mode == "cat" else r2_score(y_train, y_pred_train)
+        results[name] = (score, score_train)
 
     results_cv = {}
     for name, model in models.items():
@@ -109,12 +117,21 @@ for target in targets:
         results_cv[name] = f"scores: {scores_rounded} | mean: {scores.mean():.3f} | std: {scores.std():.3f}"
 
     for k, v in results.items():
-        #print(f"{k}: {v:.3f}")
-        result = [v for _, v in results.items()]
+        print(f"{k}: Train={v[1]:.3f}; Test={v[0]:.3f}")
+        result = [v[0] for _, v in results.items()]
+        result_train = [v[1] for _, v in results.items()]
+        result_diff = [abs(v[0] - v[1]) for _, v in results.items()]
         if mode == "cat":
             df_cat_comp[target] = result
+            df_cat_comp_train[target] = result_train
+            df_cat_comp_diff[target] = result_diff
         if mode == "num":
             df_num_comp[target] = result
+            df_num_comp_train[target] = result_train
+            df_num_comp_diff[target] = result_diff
+
+    if mode == "num":
+        all_mse.append([target] + num_models["LinearRegressionGradientDescent"].all_mse)
 
     for k, v in results_cv.items():
         #print(f"{k}: {v}")
@@ -126,5 +143,17 @@ for target in targets:
 
 df_cat_comp.to_csv("../comparison/cat_comp.csv", index=False, float_format="%.3f")
 df_num_comp.to_csv("../comparison/num_comp.csv", index=False, float_format="%.3f")
+#df_num_comp.to_csv("../comparison/num_comp_poly.csv", index=False, float_format="%.3f")
 df_cat_cv_comp.to_csv("../comparison/cat_cv_comp.csv", index=False, float_format="%.3f")
 df_num_cv_comp.to_csv("../comparison/num_cv_comp.csv", index=False, float_format="%.3f")
+#df_num_cv_comp.to_csv("../comparison/num_cv_comp_poly.csv", index=False, float_format="%.3f")
+df_cat_comp_train.to_csv("../comparison/cat_comp_train.csv", index=False, float_format="%.3f")
+df_num_comp_train.to_csv("../comparison/num_comp_train.csv", index=False, float_format="%.3f")
+#df_num_comp_train.to_csv("../comparison/num_comp_train_poly.csv", index=False, float_format="%.3f")
+df_cat_comp_diff.to_csv("../comparison/cat_comp_diff.csv", index=False, float_format="%.3f")
+df_num_comp_diff.to_csv("../comparison/num_comp_diff.csv", index=False, float_format="%.3f")
+#df_num_comp_diff.to_csv("../comparison/num_comp_diff_poly.csv", index=False, float_format="%.3f")
+
+df_num_comp_mse = pd.DataFrame(all_mse, columns=["target"] + [f"e{i+1}" for i in range(len(all_mse[0][1:]))])
+df_num_comp_mse.to_csv("../comparison/all_mse.csv", index=False, float_format="%.3f")
+#df_num_comp_mse.to_csv("../comparison/all_mse_poly.csv", index=False, float_format="%.3f")

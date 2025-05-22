@@ -14,6 +14,7 @@ class LinearRegressionGradientDescent(BaseEstimator, RegressorMixin):
         self.all_mse = []
 
     def fit(self, X, y):
+        self.all_mse = []
         if hasattr(X, "toarray"):
             X = X.toarray()
 
