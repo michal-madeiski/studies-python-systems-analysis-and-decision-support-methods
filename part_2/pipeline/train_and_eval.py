@@ -8,10 +8,34 @@ from sklearn.linear_model import LinearRegression, Lasso, Ridge
 from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingRegressor, GradientBoostingClassifier
 from sklearn.svm import SVR, SVC
-from sklearn.metrics import r2_score, accuracy_score
+from sklearn.metrics import r2_score, accuracy_score, precision_score, recall_score, f1_score
+from imblearn.over_sampling import RandomOverSampler
+from imblearn.under_sampling import RandomUnderSampler
 from part_1.main_code.data_loader import loaded_fifa22_data as data
 from part_2.linear_regr.lin_regr_closed_form import LinearRegressionClosedFormula
 from part_2.linear_regr.lin_regr_grad_desc import LinearRegressionGradientDescent
+
+def predict_models_fit(models_fit, X_test_transformed, X_train_transformed, y_test, y_train, mode):
+    results = {}
+    for name, clf in models_fit.items():
+        y_pred = clf.predict(X_test_transformed)
+        y_pred_train = clf.predict(X_train_transformed)
+        score = accuracy_score(y_test, y_pred) if mode == "cat" else r2_score(y_test, y_pred)
+        score_train = accuracy_score(y_train, y_pred_train) if mode == "cat" else r2_score(y_train, y_pred_train)
+        results[name] = (score, score_train)
+
+        #evaluation metrics for imbalanced data
+        # if mode == "cat":
+        #     precision = precision_score(y_test, y_pred, average="weighted", zero_division=0)
+        #     recall = recall_score(y_test, y_pred, average="weighted", zero_division=0)
+        #     f1 = f1_score(y_test, y_pred, average="weighted", zero_division=0)
+        #     print(f"model: {name} | precision={precision:.3f} | recall={recall:.3f} | f1-score={f1:.3f}")
+
+        #coef comp in lin_reg w/ and w/o regularization
+        # if mode == "num":
+        #     print(f"{name}: {clf.coef_}")
+
+    return results
 
 #print(data.info())
 #print(data.describe(include="all"))
@@ -19,7 +43,10 @@ from part_2.linear_regr.lin_regr_grad_desc import LinearRegressionGradientDescen
 rd = 42
 alpha_L1 = 0.1
 alpha_L2 = 10
-hyper_param_tuning_flag = True
+hyper_param_tuning_flag = False
+
+over_sampler = RandomOverSampler(random_state=rd)
+under_sampler = RandomUnderSampler(random_state=rd)
 
 num_models = {
     "LinearRegression": LinearRegression(),
@@ -68,6 +95,8 @@ cat_models_arr = [k for k, _ in cat_models.items()]
 df_cat_comp = pd.DataFrame({"model": cat_models_arr})
 df_cat_comp_train = pd.DataFrame({"model": cat_models_arr})
 df_cat_comp_diff = pd.DataFrame({"model": cat_models_arr})
+df_cat_comp_oversampling = pd.DataFrame({"model": cat_models_arr})
+df_cat_comp_undersampling = pd.DataFrame({"model": cat_models_arr})
 
 #print("Missing values per column:\n", data.isnull().sum())
 
@@ -120,10 +149,24 @@ for target in targets:
     X_train_transformed = preprocessor.fit_transform(X_train)
     X_test_transformed = preprocessor.fit_transform(X_test)
 
+    X_train_over_sampled, y_train_over_sampled = over_sampler.fit_resample(X_train_transformed, y_train)
+    X_train_under_sampled, y_train_under_sampled = under_sampler.fit_resample(X_train_transformed, y_train)
+
     models_fit = {}
+    models_fit_oversampling = {}
+    models_fit_undersampling = {}
     if not hyper_param_tuning_flag:
         for name, model in models.items():
             models_fit[name] = model.fit(X_train_transformed, y_train)
+
+            if mode == "cat":
+                #oversampling
+                model_oversampling = model.__class__(**model.get_params())
+                models_fit_oversampling[name] = model_oversampling.fit(X_train_over_sampled, y_train_over_sampled)
+
+                #undersampling
+                model_undersampling = model.__class__(**model.get_params())
+                models_fit_undersampling[name] = model_undersampling.fit(X_train_under_sampled, y_train_under_sampled)
 
     if hyper_param_tuning_flag:
         if mode == "num"  and target == "value_eur":
@@ -137,17 +180,7 @@ for target in targets:
             print(f"Target: {target} | Best params: {grid_DecisionTreeClassifier.best_params_} | Best CV score: {grid_DecisionTreeClassifier.best_score_:.3f}")
             models_fit["DecisionTree"] = grid_DecisionTreeClassifier.best_estimator_
 
-    results = {}
-    for name, clf in models_fit.items():
-        y_pred = clf.predict(X_test_transformed)
-        y_pred_train = clf.predict(X_train_transformed)
-        score = accuracy_score(y_test, y_pred) if mode == "cat" else r2_score(y_test, y_pred)
-        score_train = accuracy_score(y_train, y_pred_train) if mode == "cat" else r2_score(y_train, y_pred_train)
-        results[name] = (score, score_train)
-
-        #coef comp in lin_reg w/ and w/o regularization
-        #if mode == "num":
-        #     print(f"{name}: {clf.coef_}")
+    results = predict_models_fit(models_fit, X_test_transformed, X_train_transformed, y_test, y_train, mode)
 
     results_cv = {}
     for name, model in models.items():
@@ -170,6 +203,18 @@ for target in targets:
             df_num_comp_diff[target] = result_diff
             if k in l1_l2_comp_models:
                 df_num_comp_l1_l2[target] = result
+
+    if mode == "cat":
+        results_oversampling = predict_models_fit(models_fit_oversampling, X_test_transformed, X_train_over_sampled, y_test, y_train_over_sampled, mode)
+        results_undersampling = predict_models_fit(models_fit_undersampling, X_test_transformed, X_train_under_sampled, y_test, y_train_under_sampled, mode)
+
+        for k, v in results_oversampling.items():
+            result = [v[0] for _, v in results_oversampling.items()]
+            df_cat_comp_oversampling[target] = result
+
+        for k, v in results_undersampling.items():
+            result = [v[0] for _, v in results_undersampling.items()]
+            df_cat_comp_undersampling[target] = result
 
     if mode == "num":
         all_mse.append([target] + num_models["LinearRegressionGradientDescent"].all_mse)
@@ -195,6 +240,8 @@ df_cat_comp_diff.to_csv("../comparison/cat_comp_diff.csv", index=False, float_fo
 df_num_comp_diff.to_csv("../comparison/num_comp_diff.csv", index=False, float_format="%.3f")
 #df_num_comp_diff.to_csv("../comparison/num_comp_diff_poly.csv", index=False, float_format="%.3f")
 df_num_comp_l1_l2.to_csv("../comparison/num_comp_l1_l2.csv", index=False, float_format="%.3f")
+df_cat_comp_oversampling.to_csv("../comparison/cat_comp_oversampling.csv", index=False, float_format="%.3f")
+df_cat_comp_undersampling.to_csv("../comparison/cat_comp_undersampling.csv", index=False, float_format="%.3f")
 
 df_num_comp_mse = pd.DataFrame(all_mse, columns=["target"] + [f"e{i+1}" for i in range(len(all_mse[0][1:]))])
 df_num_comp_mse.to_csv("../comparison/all_mse.csv", index=False, float_format="%.3f")
