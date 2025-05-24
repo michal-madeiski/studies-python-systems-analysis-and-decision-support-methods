@@ -1,5 +1,5 @@
 import pandas as pd
-from sklearn.model_selection import train_test_split, cross_val_score, KFold, StratifiedKFold
+from sklearn.model_selection import train_test_split, cross_val_score, KFold, StratifiedKFold, GridSearchCV
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, PolynomialFeatures
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
@@ -19,6 +19,7 @@ from part_2.linear_regr.lin_regr_grad_desc import LinearRegressionGradientDescen
 rd = 42
 alpha_L1 = 0.1
 alpha_L2 = 10
+hyper_param_tuning_flag = True
 
 num_models = {
     "LinearRegression": LinearRegression(),
@@ -33,12 +34,23 @@ num_models = {
     "LinearRegressionGradientDescent_L2": LinearRegressionGradientDescent(learning_rate=0.01, max_iterations=100, batch_size=32, l2_reg=alpha_L2, random_state=rd),
 }
 l1_l2_comp_models = ["LinearRegression", "Lasso (L1)", "Ridge (L2)", "LinearRegressionGradientDescent", "LinearRegressionGradientDescent_L1", "LinearRegressionGradientDescent_L2"]
+param_SVM = {
+    "kernel": ["rbf", "poly", "sigmoid"],
+    "C": [0.01, 0.1, 1.0, 10.0],
+    "gamma": ["scale", "auto", 0.01, 0.1],
+}
 
 cat_models = {
     "RandomForestClassifier": RandomForestClassifier(random_state=rd),
     "DecisionTree": DecisionTreeClassifier(max_depth=5, random_state=rd),
     "SVM": SVC(kernel="rbf", C=1.0),
     "GradientBoosting": GradientBoostingClassifier(random_state=rd),
+}
+param_DecisionTreeClassifier = {
+    "max_depth": [3, 5, 8, None],
+    "min_samples_split": [2, 4, 8],
+    "min_samples_leaf": [2, 4, 8],
+    "criterion": ["gini", "entropy"],
 }
 
 features = ["overall", "value_eur", "age", "height_cm", "weight_kg", "league_level", "club_position", "preferred_foot", "weak_foot", "skill_moves"]
@@ -59,8 +71,9 @@ df_cat_comp_diff = pd.DataFrame({"model": cat_models_arr})
 
 #print("Missing values per column:\n", data.isnull().sum())
 
-num_cv = KFold(n_splits=3, shuffle=True, random_state=rd)
-cat_cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=rd)
+cv_splits = 3
+num_cv = KFold(n_splits=cv_splits, shuffle=True, random_state=rd)
+cat_cv = StratifiedKFold(n_splits=cv_splits, shuffle=True, random_state=rd)
 df_num_cv_comp = pd.DataFrame({"model": num_models_arr})
 df_cat_cv_comp = pd.DataFrame({"model": cat_models_arr})
 
@@ -108,8 +121,21 @@ for target in targets:
     X_test_transformed = preprocessor.fit_transform(X_test)
 
     models_fit = {}
-    for name, model in models.items():
-        models_fit[name] = model.fit(X_train_transformed, y_train)
+    if not hyper_param_tuning_flag:
+        for name, model in models.items():
+            models_fit[name] = model.fit(X_train_transformed, y_train)
+
+    if hyper_param_tuning_flag:
+        if mode == "num"  and target == "value_eur":
+            grid_SVM = GridSearchCV(num_models["SVM"], param_SVM, cv=cv, scoring=scoring)
+            grid_SVM.fit(X_train_transformed, y_train)
+            print(f"Target: {target} | Best params: {grid_SVM.best_params_} | Best CV score: {grid_SVM.best_score_:.3f}")
+            models_fit["SVM"] = grid_SVM.best_estimator_
+        if mode == "cat"  and target == "club_position":
+            grid_DecisionTreeClassifier = GridSearchCV(cat_models["DecisionTree"], param_DecisionTreeClassifier, cv=cv, scoring=scoring)
+            grid_DecisionTreeClassifier.fit(X_train_transformed, y_train)
+            print(f"Target: {target} | Best params: {grid_DecisionTreeClassifier.best_params_} | Best CV score: {grid_DecisionTreeClassifier.best_score_:.3f}")
+            models_fit["DecisionTree"] = grid_DecisionTreeClassifier.best_estimator_
 
     results = {}
     for name, clf in models_fit.items():
