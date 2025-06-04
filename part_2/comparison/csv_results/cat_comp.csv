@@ -1,0 +1,5 @@
+model,club_position,preferred_foot
+RandomForestClassifier,0.424,0.785
+DecisionTree,0.466,0.791
+SVM,0.461,0.794
+GradientBoosting,0.455,0.793

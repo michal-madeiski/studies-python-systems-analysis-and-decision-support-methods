@@ -1,0 +1,7 @@
+model,overall,value_eur,age
+LinearRegression,0.615,0.377,0.334
+DecisionTree,0.951,0.955,0.701
+SVM,0.844,-0.062,0.655
+GradientBoosting,0.991,0.996,0.937
+LinearRegressionClosedFormula,0.615,0.377,0.334
+LinearRegressionGradientDescent,0.614,0.375,0.333
